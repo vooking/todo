@@ -56,45 +56,49 @@ class TodoApp {
     }
 
     bindEvents() {
-        this.form.addEventListener('submit', e => {
-            e.preventDefault();
-            const input = this.form.querySelector('#item');
-            if (!input.value.trim()) return;
-
-            const item = { text: input.value, completed: false };
-            this.items.push(item);
-            this.updateStorage();
-            this.todo.appendChild(this.createItem(item));
-
-            input.value = '';
-            this.updateCount();
-        });
-
-        document.addEventListener('click', e => {
-            if (e.target.closest('button')?.id !== 'delete' && e.target.closest('button')?.id !== 'complete') return;
-
-            const li = e.target.closest('li');
-            const index = this.items.findIndex(item => item.text === li.querySelector('p').textContent);
-            const item = this.items[index];
-            this.items.splice(index, 1);
-
-            if (e.target.closest('div').closest('ul') === this.done) {
-                const indexDone = this.completed.findIndex(item => item.text === li.querySelector('p').textContent);
-                this.completed.splice(indexDone, 1);
-            }
-
-            if (e.target.id === 'complete') {
-                item.completed = true;
-                this.completed.push(item);
-                this.done.appendChild(this.createItem(item));
-                this.updateStorage();
-            }
-
-            li.remove();
-            this.updateStorage();
-            this.updateCount();
-        });
+        this.form.addEventListener('submit', this.handleSubmit.bind(this));
+        document.addEventListener('click', this.handleClick.bind(this));
     }
+    
+    handleSubmit(e) {
+        e.preventDefault();
+        const input = this.form.querySelector('#item');
+        if (!input.value.trim()) return;
+    
+        const item = { text: input.value, completed: false };
+        this.items.push(item);
+        this.updateStorage();
+        this.todo.appendChild(this.createItem(item));
+    
+        input.value = '';
+        this.updateCount();
+    }
+    
+    handleClick(e) {
+        if (e.target.closest('button')?.id !== 'delete' && e.target.closest('button')?.id !== 'complete') return;
+    
+        const li = e.target.closest('li');
+        const index = this.items.findIndex(item => item.text === li.querySelector('p').textContent);
+        const item = this.items[index];
+        this.items.splice(index, 1);
+    
+        if (e.target.closest('div').closest('ul') === this.done) {
+            const indexDone = this.completed.findIndex(item => item.text === li.querySelector('p').textContent);
+            this.completed.splice(indexDone, 1);
+        }
+    
+        if (e.target.id === 'complete') {
+            item.completed = true;
+            this.completed.push(item);
+            this.done.appendChild(this.createItem(item));
+            this.updateStorage();
+        }
+    
+        li.remove();
+        this.updateStorage();
+        this.updateCount();
+    }
+    
 }
 
 new TodoApp();
