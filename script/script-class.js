@@ -11,88 +11,82 @@ class Button {
 }
 
 class TodoItem {
-    constructor(id, text, completed = false, buttons = []) {
+    constructor(id, text, completed = false) {
         this.id = id;
         this.text = text;
         this.completed = completed;
-        this.buttons = buttons;
         this.element = this.createElement();
     }
 
     createElement() {
-        const buttonsHTML = this.buttons.map(button => button.createElement()).join('');
+        const buttons = !this.completed ? [
+            new Button('complete', 'check', 'Завершить').createElement(),
+            new Button('delete', 'delete', 'Удалить').createElement()
+        ].join('') : '';
+        
         const li = document.createElement('li');
-        li.innerHTML = `
-            <p>${this.text}</p>
-            <div>
-                ${buttonsHTML}
-            </div>
-        `;
-        li.setAttribute('data-id', this.id);
-        if (this.completed) {
-            li.classList.add('completed');
-        }
+        li.dataset.id = this.id;
+        li.className = this.completed ? 'completed' : '';
+        li.innerHTML = `<p>${this.text}</p><div>${buttons}</div>`;
+        
         return li;
     }
 }
 
-class TodoApp {
-    constructor() {
-        this.form = document.querySelector('form');
-        this.todo = document.querySelector('#items');
-        this.done = document.querySelector('#completed');
-        this.countTodo = document.querySelector('#countTodo');
-        this.countDone = document.querySelector('#countDone');
-        this.items = JSON.parse(localStorage.getItem('items')) || [];
-        this.completed = JSON.parse(localStorage.getItem('completed')) || [];
-        this.bindEvents();
-        this.renderItems();
+class StorageManager {
+    static getItems(key) {
+        return JSON.parse(localStorage.getItem(key)) || [];
     }
 
-    createItem(item) {
-        const buttons = item.completed ? 
-            [] : 
-            [new Button('complete', 'check', 'Завершить'), new Button('delete', 'delete', 'Удалить')];
-        return new TodoItem(item.id, item.text, item.completed, buttons).element;
+    static setItems(key, items) {
+        localStorage.setItem(key, JSON.stringify(items));
+    }
+}
+
+class Renderer {
+    constructor(todoElement, doneElement, countTodoElement, countDoneElement) {
+        this.todoElement = todoElement;
+        this.doneElement = doneElement;
+        this.countTodoElement = countTodoElement;
+        this.countDoneElement = countDoneElement;
     }
 
-    updateCount() {
-        this.countTodo.textContent = this.items.length;
-        this.countDone.textContent = this.completed.length;
+    renderItems(items, completed) {
+        this.todoElement.innerHTML = '';
+        this.doneElement.innerHTML = '';
+        
+        items.forEach(item => this.todoElement.appendChild(new TodoItem(item.id, item.text, item.completed).element));
+        completed.forEach(item => this.doneElement.appendChild(new TodoItem(item.id, item.text, item.completed).element));
+        
+        this.updateCount(items.length, completed.length);
     }
 
-    updateStorage() {
-        localStorage.setItem('items', JSON.stringify(this.items));
-        localStorage.setItem('completed', JSON.stringify(this.completed));
+    updateCount(todoCount, doneCount) {
+        this.countTodoElement.textContent = todoCount;
+        this.countDoneElement.textContent = doneCount;
     }
+}
 
-    renderItems() {
-        this.todo.innerHTML = '';
-        this.done.innerHTML = '';
-
-        this.items.forEach(item => this.todo.appendChild(this.createItem(item)));
-        this.completed.forEach(item => this.done.appendChild(this.createItem(item)));
-
-        this.updateCount();
+class EventHandler {
+    constructor(todoApp) {
+        this.todoApp = todoApp;
     }
 
     bindEvents() {
-        this.form.addEventListener('submit', this.handleSubmit.bind(this));
+        this.todoApp.form.addEventListener('submit', this.handleSubmit.bind(this));
         document.addEventListener('click', this.handleClick.bind(this));
     }
 
     handleSubmit(e) {
         e.preventDefault();
-        const input = this.form.querySelector('#item');
+        const input = this.todoApp.form.querySelector('#item');
         if (!input.value.trim()) return;
 
         const item = { id: Date.now(), text: input.value, completed: false };
-        this.items.push(item);
-        this.updateStorage();
-        this.todo.appendChild(this.createItem(item));
+        this.todoApp.items.push(item);
+        this.updateStorageAndRender();
 
         input.value = '';
-        this.updateCount();
     }
 
     handleClick(e) {
@@ -103,35 +97,41 @@ class TodoApp {
         const id = Number(li.dataset.id);
 
         if (button.id === 'delete') {
-            this.deleteItem(id, li);
+            this.todoApp.items = this.todoApp.items.filter(item => item.id !== id);
+            this.todoApp.completed = this.todoApp.completed.filter(item => item.id !== id);
         } else if (button.id === 'complete') {
-            this.completeItem(id, li);
-        }
-    }
-
-    deleteItem(id, li) {
-        this.items = this.items.filter(item => item.id !== id);
-        this.completed = this.completed.filter(item => item.id !== id);
-
-        li.remove();
-        this.updateStorage();
-        this.updateCount();
-    }
-
-    completeItem(id, li) {
-        const item = this.items.find(item => item.id === id);
-        if (item) {
-            this.items = this.items.filter(item => item.id !== id);
-            item.completed = true;
-            this.completed.push(item);
+            const item = this.todoApp.items.find(item => item.id === id);
+            if (item) {
+                this.todoApp.items = this.todoApp.items.filter(item => item.id !== id);
+                item.completed = true;
+                this.todoApp.completed.push(item);
+            }
         }
 
-        li.remove();
-        this.updateStorage();
-        this.renderItems();
+        this.updateStorageAndRender();
+    }
+
+    updateStorageAndRender() {
+        StorageManager.setItems('items', this.todoApp.items);
+        StorageManager.setItems('completed', this.todoApp.completed);
+        this.todoApp.renderer.renderItems(this.todoApp.items, this.todoApp.completed);
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    new TodoApp();
-});
+class TodoApp {
+    constructor() {
+        this.form = document.querySelector('form');
+        this.todo = document.querySelector('#items');
+        this.done = document.querySelector('#completed');
+        this.countTodo = document.querySelector('#countTodo');
+        this.countDone = document.querySelector('#countDone');
+        this.items = StorageManager.getItems('items');
+        this.completed = StorageManager.getItems('completed');
+        this.renderer = new Renderer(this.todo, this.done, this.countTodo, this.countDone);
+        this.eventHandler = new EventHandler(this);
+        this.eventHandler.bindEvents();
+        this.renderer.renderItems(this.items, this.completed);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => new TodoApp());
