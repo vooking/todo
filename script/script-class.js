@@ -1,19 +1,37 @@
+class Button {
+    constructor(id, imgSrc, altText) {
+        this.id = id;
+        this.imgSrc = imgSrc;
+        this.altText = altText;
+    }
+
+    createElement() {
+        return `<button id="${this.id}"><img src="./svg/${this.imgSrc}.svg" alt="${this.altText}" width="16" height="16"></button>`;
+    }
+}
+
 class TodoItem {
-    constructor(text, completed = false) {
+    constructor(id, text, completed = false, buttons = []) {
+        this.id = id;
         this.text = text;
         this.completed = completed;
+        this.buttons = buttons;
         this.element = this.createElement();
     }
 
     createElement() {
-        var li = document.createElement('li');
+        const buttonsHTML = this.buttons.map(button => button.createElement()).join('');
+        const li = document.createElement('li');
         li.innerHTML = `
             <p>${this.text}</p>
             <div>
-                ${this.completed ? '' : '<button id="complete"><img src="./svg/check.svg" alt="Завершить" width="16" height="16"></button>'}
-                ${this.completed ? '' : '<button id="delete"><img src="./svg/delete.svg" alt="Удалить" width="16" height="16"></button>'}
+                ${buttonsHTML}
             </div>
         `;
+        li.setAttribute('data-id', this.id);
+        if (this.completed) {
+            li.classList.add('completed');
+        }
         return li;
     }
 }
@@ -32,12 +50,15 @@ class TodoApp {
     }
 
     createItem(item) {
-        return new TodoItem(item.text, item.completed).element;
+        const buttons = item.completed ? 
+            [] : 
+            [new Button('complete', 'check', 'Завершить'), new Button('delete', 'delete', 'Удалить')];
+        return new TodoItem(item.id, item.text, item.completed, buttons).element;
     }
 
     updateCount() {
-        this.countTodo.textContent = this.todo.getElementsByTagName('li').length;
-        this.countDone.textContent = this.done.getElementsByTagName('li').length;
+        this.countTodo.textContent = this.items.length;
+        this.countDone.textContent = this.completed.length;
     }
 
     updateStorage() {
@@ -59,46 +80,58 @@ class TodoApp {
         this.form.addEventListener('submit', this.handleSubmit.bind(this));
         document.addEventListener('click', this.handleClick.bind(this));
     }
-    
+
     handleSubmit(e) {
         e.preventDefault();
         const input = this.form.querySelector('#item');
         if (!input.value.trim()) return;
-    
-        const item = { text: input.value, completed: false };
+
+        const item = { id: Date.now(), text: input.value, completed: false };
         this.items.push(item);
         this.updateStorage();
         this.todo.appendChild(this.createItem(item));
-    
+
         input.value = '';
         this.updateCount();
     }
-    
+
     handleClick(e) {
-        if (e.target.closest('button')?.id !== 'delete' && e.target.closest('button')?.id !== 'complete') return;
-    
-        const li = e.target.closest('li');
-        const index = this.items.findIndex(item => item.text === li.querySelector('p').textContent);
-        const item = this.items[index];
-        this.items.splice(index, 1);
-    
-        if (e.target.closest('div').closest('ul') === this.done) {
-            const indexDone = this.completed.findIndex(item => item.text === li.querySelector('p').textContent);
-            this.completed.splice(indexDone, 1);
+        const button = e.target.closest('button');
+        if (!button) return;
+
+        const li = button.closest('li');
+        const id = Number(li.dataset.id);
+
+        if (button.id === 'delete') {
+            this.deleteItem(id, li);
+        } else if (button.id === 'complete') {
+            this.completeItem(id, li);
         }
-    
-        if (e.target.id === 'complete') {
-            item.completed = true;
-            this.completed.push(item);
-            this.done.appendChild(this.createItem(item));
-            this.updateStorage();
-        }
-    
+    }
+
+    deleteItem(id, li) {
+        this.items = this.items.filter(item => item.id !== id);
+        this.completed = this.completed.filter(item => item.id !== id);
+
         li.remove();
         this.updateStorage();
         this.updateCount();
     }
-    
+
+    completeItem(id, li) {
+        const item = this.items.find(item => item.id === id);
+        if (item) {
+            this.items = this.items.filter(item => item.id !== id);
+            item.completed = true;
+            this.completed.push(item);
+        }
+
+        li.remove();
+        this.updateStorage();
+        this.renderItems();
+    }
 }
 
-new TodoApp();
+document.addEventListener('DOMContentLoaded', () => {
+    new TodoApp();
+});
