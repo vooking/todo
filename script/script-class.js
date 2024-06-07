@@ -1,15 +1,3 @@
-class Button {
-    constructor(id, imgSrc, altText) {
-        this.id = id;
-        this.imgSrc = imgSrc;
-        this.altText = altText;
-    }
-
-    createElement() {
-        return `<button id="${this.id}"><img src="./svg/${this.imgSrc}.svg" alt="${this.altText}" width="16" height="16"></button>`;
-    }
-}
-
 class TodoItem {
     constructor(id, text, completed = false) {
         this.id = id;
@@ -20,16 +8,20 @@ class TodoItem {
 
     createElement() {
         const buttons = !this.completed ? [
-            new Button('complete', 'check', 'Завершить').createElement(),
-            new Button('delete', 'delete', 'Удалить').createElement()
+            this.createButton('complete', 'check', 'Завершить'),
+            this.createButton('delete', 'delete', 'Удалить')
         ].join('') : '';
-        
+
         const li = document.createElement('li');
         li.dataset.id = this.id;
         li.className = this.completed ? 'completed' : '';
         li.innerHTML = `<p>${this.text}</p><div>${buttons}</div>`;
-        
+
         return li;
+    }
+
+    createButton(id, imgSrc, altText) {
+        return `<button id="${id}"><img src="./svg/${imgSrc}.svg" alt="${altText}" width="16" height="16"></button>`;
     }
 }
 
@@ -43,47 +35,31 @@ class StorageManager {
     }
 }
 
-class Renderer {
-    constructor(todoElement, doneElement, countTodoElement, countDoneElement) {
-        this.todoElement = todoElement;
-        this.doneElement = doneElement;
-        this.countTodoElement = countTodoElement;
-        this.countDoneElement = countDoneElement;
-    }
+class TodoApp {
+    constructor() {
+        this.form = document.querySelector('form');
+        this.todo = document.querySelector('#items');
+        this.done = document.querySelector('#completed');
+        this.countTodo = document.querySelector('#countTodo');
+        this.countDone = document.querySelector('#countDone');
+        this.items = StorageManager.getItems('items');
 
-    renderItems(items, completed) {
-        this.todoElement.innerHTML = '';
-        this.doneElement.innerHTML = '';
-        
-        items.forEach(item => this.todoElement.appendChild(new TodoItem(item.id, item.text, item.completed).element));
-        completed.forEach(item => this.doneElement.appendChild(new TodoItem(item.id, item.text, item.completed).element));
-        
-        this.updateCount(items.length, completed.length);
-    }
-
-    updateCount(todoCount, doneCount) {
-        this.countTodoElement.textContent = todoCount;
-        this.countDoneElement.textContent = doneCount;
-    }
-}
-
-class EventHandler {
-    constructor(todoApp) {
-        this.todoApp = todoApp;
+        this.bindEvents();
+        this.renderItems();
     }
 
     bindEvents() {
-        this.todoApp.form.addEventListener('submit', this.handleSubmit.bind(this));
+        this.form.addEventListener('submit', this.handleSubmit.bind(this));
         document.addEventListener('click', this.handleClick.bind(this));
     }
 
     handleSubmit(e) {
         e.preventDefault();
-        const input = this.todoApp.form.querySelector('#item');
+        const input = this.form.querySelector('#item');
         if (!input.value.trim()) return;
 
         const item = { id: Date.now(), text: input.value, completed: false };
-        this.todoApp.items.push(item);
+        this.items.push(item);
         this.updateStorageAndRender();
 
         input.value = '';
@@ -94,43 +70,43 @@ class EventHandler {
         if (!button) return;
 
         const li = button.closest('li');
+        if (!li) return;
+
         const id = Number(li.dataset.id);
 
         if (button.id === 'delete') {
-            this.todoApp.items = this.todoApp.items.filter(item => item.id !== id);
-            this.todoApp.completed = this.todoApp.completed.filter(item => item.id !== id);
+            this.items = this.items.filter(item => item.id !== id);
         } else if (button.id === 'complete') {
-            const item = this.todoApp.items.find(item => item.id === id);
+            const item = this.items.find(item => item.id === id);
             if (item) {
-                this.todoApp.items = this.todoApp.items.filter(item => item.id !== id);
                 item.completed = true;
-                this.todoApp.completed.push(item);
             }
         }
 
         this.updateStorageAndRender();
     }
 
-    updateStorageAndRender() {
-        StorageManager.setItems('items', this.todoApp.items);
-        StorageManager.setItems('completed', this.todoApp.completed);
-        this.todoApp.renderer.renderItems(this.todoApp.items, this.todoApp.completed);
-    }
-}
+    renderItems() {
+        this.todo.innerHTML = '';
+        this.done.innerHTML = '';
 
-class TodoApp {
-    constructor() {
-        this.form = document.querySelector('form');
-        this.todo = document.querySelector('#items');
-        this.done = document.querySelector('#completed');
-        this.countTodo = document.querySelector('#countTodo');
-        this.countDone = document.querySelector('#countDone');
-        this.items = StorageManager.getItems('items');
-        this.completed = StorageManager.getItems('completed');
-        this.renderer = new Renderer(this.todo, this.done, this.countTodo, this.countDone);
-        this.eventHandler = new EventHandler(this);
-        this.eventHandler.bindEvents();
-        this.renderer.renderItems(this.items, this.completed);
+        const todoItems = this.items.filter(item => !item.completed);
+        const completedItems = this.items.filter(item => item.completed);
+
+        todoItems.forEach(item => this.todo.appendChild(new TodoItem(item.id, item.text, item.completed).element));
+        completedItems.forEach(item => this.done.appendChild(new TodoItem(item.id, item.text, item.completed).element));
+
+        this.updateCount(todoItems.length, completedItems.length);
+    }
+
+    updateCount(todoCount, doneCount) {
+        this.countTodo.textContent = todoCount;
+        this.countDone.textContent = doneCount;
+    }
+
+    updateStorageAndRender() {
+        StorageManager.setItems('items', this.items);
+        this.renderItems();
     }
 }
 
